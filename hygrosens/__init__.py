@@ -79,7 +79,7 @@ class hygrosens:
     """
     Hygrosens Class
     """
-    def __init__(self,debug=0, port='/dev/ttyS0', timeout=0.1):
+    def __init__(self,debug=0, port='/dev/ttyS0', timeout=10):
         """
         Initialize the connection to the Hygrosens device
         """
