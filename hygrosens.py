@@ -17,6 +17,24 @@
 # What about temperatures below 0C?
 # How is negative value calculated? Is hex data signed?
 
+#CREATE TABLE hygrosens (
+#  ReadingKey bigint UNSIGNED NOT NULL auto_increment,
+#  SerialNumber varchar(20) NOT NULL,
+#  Channel int NOT NULL,
+#  Type int NOT NULL,
+#  Family int NOT NULL,
+#  RecTime timestamp NOT NULL,
+#  Value float NOT NULL,
+#  PRIMARY KEY(SerialNumber),
+#  KEY(ReadingKey),
+#  KEY(RecTime),
+#  KEY(Value),
+#  KEY(Type),
+#  KEY(Family)
+#);
+                
+                  
+
 """
 Hygrosens sensor output
 Copyright 2005 by Brian C. Lane <bcl@brianlane.com>
@@ -51,9 +69,9 @@ except ImportError:
 debug = 1
 
 db_host = "localhost"
-db_name = "music"
-db_user = "music_user"
-db_pass = "MyPassword"
+db_name = "hygrosens"
+db_user = "hygrosens"
+db_pass = "hygrosens"
 
 
 
@@ -124,13 +142,13 @@ def process_sensor( line ):
     4 = Serial number
     5 = CRC
     """
-    sensor = int(line[1:3])
+    channel = int(line[1:3])
     type   = int(line[3:5],16)
     family = int(line[5:7],16)
     serial = line[7:19]
 
     # Return a dictionary
-    return { 'sensor' : sensor,
+    return { 'channel': channel,
              'type'   : type,
              'family' : family,
              'serial' : serial
@@ -154,27 +172,32 @@ def process_value( sensor, line ):
     if sensor['type'] == 1:
         # Temperature sensor
 #        print "Temperature = %7.2fC / %7.2fF" % (temperature(value), c2f(temperature(value)))
-        sys.stdout.write( ",%7.2f,%7.2f" % (temperature(value), c2f(temperature(value))) )
+#        sys.stdout.write( ",%7.2f,%7.2f" % (temperature(value), c2f(temperature(value))) )
+        return temperature(value)
 
     elif sensor['type'] == 2:
         # Humidity
 #        print "Humidity = %7.3f%%" % (value / 200.0)
-        sys.stdout.write( ",%7.3f" % (value / 200.0) )
+#        sys.stdout.write( ",%7.3f" % (value / 200.0) )
+        return value / 200.0
 
     elif sensor['type'] == 0x53:
         # Dew Point
 #        print "Dew Point = %7.2fC / %7.2fF" % (temperature(value), c2f(temperature(value)))
-        sys.stdout.write( ",%7.2f,%7.2f" % (temperature(value), c2f(temperature(value))) )
+#        sys.stdout.write( ",%7.2f,%7.2f" % (temperature(value), c2f(temperature(value))) )
+        return temperature(value)
         
     elif sensor['type'] == 0x55:
         # Absolute Humidity
-#        print "Humidity = %7.2fg/m^3" % (value / 100)
-        sys.stdout.write( ",%7.2f" % (value / 100) )
+#        print "Humidity = %7.2fg/m^3" % (value / 100.0)
+#        sys.stdout.write( ",%7.2f" % (value / 100.0) )
+        return value / 100.0
         
     elif sensor['type'] == 0x0A:
         # Light Sensor
 #        print "Light = %d Lux" % (value)
-        sys.stdout.write( ",%d" % (value) )
+#        sys.stdout.write( ",%d" % (value) )
+        return value
         
     elif sensor['type'] == 3:
         # Air Pressure
@@ -182,8 +205,8 @@ def process_value( sensor, line ):
         s = unhexlify(line[3:11])
         value = struct.unpack("!f", s)[0]
 #        print "Pressure = %f Pascal" % (value)
-        sys.stdout.write( ",%f" % (value) )
-    
+#        sys.stdout.write( ",%f" % (value) )
+        return value    
 
 if __name__ == '__main__':
     """
@@ -194,8 +217,9 @@ if __name__ == '__main__':
     # Connect to the database
     try:
         mydb = MySQLdb.Connect(host=db_host,user=db_user,passwd=db_pass,db=db_name)
-    except DatabaseError:
+    except:
         print "Problem connecting to database"
+        raise
         sys.exit(-1)
             
     # Create a dictionary cursor
@@ -227,14 +251,28 @@ if __name__ == '__main__':
 
         elif line[0] == 'V':
             # Value report for the sensor
-            process_value( sensor, line )
-            sql = "INSERT INTO artist VALUES(NULL,%s)"
-            db.execute( sql, (artist) )
+            value = process_value( sensor, line )
+
+#  (NULL,962F8D56E49B,1,1,1,NULL,22.470000)
+#  SerialNumber varchar(20) NOT NULL,
+#  Channel int NOT NULL,
+#  Type int NOT NULL,
+#  Family int NOT NULL,
+#  RecTime timestamp NOT NULL,
+#  Value float NOT NULL,
             
+#            sql = "INSERT INTO hygrosens VALUES(NULL,%s,%d,%d,%d,NULL,%f)"
+            sql = "INSERT INTO hygrosens VALUES(NULL,%s,%s,%s,%s,NULL,%s)"
+            try:
+                db.execute( sql, (sensor['serial'],sensor['channel'],sensor['type'],sensor['family'],value) )
+            except:                
+                sys.stderr.write( sql % (sensor['serial'],sensor['channel'],sensor['type'],sensor['family'],value) )
+                sys.stderr.write( "\n" )
+                raise
+                
         elif line[0] == '@':
             sys.stdout.write("\n")
                 
         line = ser.readline(eol='\r')
         
     ser.close()
-
