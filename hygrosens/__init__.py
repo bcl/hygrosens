@@ -111,6 +111,8 @@ class hygrosens:
     def checksum( self, line ):
         """
         Check the checksum of the received line of data
+
+        I need to write this. For now return true.
         """
         return True
 
