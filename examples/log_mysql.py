@@ -3,31 +3,13 @@
 # Log Hygrosens readings to a MySQL database
 # Copyright 2005 by Brian C. Lane
 # All Rights Reserved
-#
-
-
-#CREATE TABLE hygrosens (
-#  ReadingKey bigint UNSIGNED NOT NULL auto_increment,
-#  SerialNumber varchar(20) NOT NULL,
-#  Channel int NOT NULL,
-#  Type int NOT NULL,
-#  Family int NOT NULL,
-#  RecTime timestamp NOT NULL,
-#  Value float NOT NULL,
-#  PRIMARY KEY(SerialNumber),
-#  KEY(ReadingKey),
-#  KEY(RecTime),
-#  KEY(Value),
-#  KEY(Type),
-#  KEY(Family)
-#);
-                
-                  
+# Licensed under GPL v2, see the COPYRIGHT and COPYING files
 
 """
 Hygrosens MySQL logging
 Copyright 2005 by Brian C. Lane <bcl@brianlane.com>
 
+SQL commands are in the hygrosens.sql file
 """
 
 import os,sys
