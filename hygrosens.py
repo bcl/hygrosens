@@ -25,6 +25,7 @@ Copyright 2005 by Brian C. Lane <bcl@brianlane.com>
 
 import os,sys
 from binascii import *
+import struct
 
 
 try:
@@ -85,7 +86,20 @@ def checksum( line ):
     Check the checksum of the received line
     """
     pass
-    
+
+
+def temperature( value ):
+    """
+    Convert Hygrosens signed 16 bit integer value to signed
+    temperature value
+    """
+    if value <0x8000:
+        # Positive Temperature
+        return value/100.0
+    else:
+        # 2's complement negative value
+        return -1 * (0x10000 - value)/100.0
+
 
 def process_sensor( line ):
     """
@@ -97,11 +111,9 @@ def process_sensor( line ):
     4 = Serial number
     5 = CRC
     """
-    print line
-    
     sensor = int(line[1:3])
-    type   = int(line[3:5])
-    family = int(line[5:7])
+    type   = int(line[3:5],16)
+    family = int(line[5:7],16)
     serial = line[7:19]
 
     # Return a dictionary
@@ -120,20 +132,38 @@ def process_value( sensor, line ):
     2 = Measurement data
     3 = CRC
     """
-    print line
-
     channel = int(line[1:3])
     value   = int(line[3:7],16)
 
-    print "%02d  : %d" % (channel, value)
+    if debug > 1:
+        print "%02d  : %d" % (channel, value)
 
     if sensor['type'] == 1:
         # Temperature sensor
-        print "Temperature = %7.2fC / %7.2fF" % (value / 100.0, c2f(value / 100.0))
+        print "Temperature = %7.2fC / %7.2fF" % (temperature(value), c2f(temperature(value)))
 
     elif sensor['type'] == 2:
         # Humidity
         print "Humidity = %7.3f%%" % (value / 200.0)
+
+    elif sensor['type'] == 0x53:
+        # Dew Point
+        print "Dew Point = %7.2fC / %7.2fF" % (temperature(value), c2f(temperature(value)))
+        
+    elif sensor['type'] == 0x55:
+        # Absolute Humidity
+        print "Humidity = %7.2fg/m^3" % (value / 100)
+        
+    elif sensor['type'] == 0x0A:
+        # Light Sensor
+        print "Light = %d Lux" % (value)
+        
+    elif sensor['type'] == 3:
+        # Air Pressure
+        # IEEE Single Precision Float Value
+        s = unhexlify(line[3:11])
+        value = struct.unpack("!f", s)[0]
+        print "Pressure = %f Pascal" % (value)
     
 
 if __name__ == '__main__':
