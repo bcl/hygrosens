@@ -30,7 +30,6 @@ import struct
 
 try:
     import serial
-    
 except ImportError:
     print """
           Error importing the serial library. You need to make sure 
@@ -39,8 +38,22 @@ except ImportError:
           """
     sys.exit(-1)
 
+try:
+    import MySQLdb
+except ImportError:
+    print """
+          Error importing MySQLdb module. You need to install the Python
+          MySQL module if you want to store data in a MySQL database.
+          """
+    sys.exit(-1)
+    
 
 debug = 1
+
+db_host = "localhost"
+db_name = "music"
+db_user = "music_user"
+db_pass = "MyPassword"
 
 
 
@@ -140,36 +153,58 @@ def process_value( sensor, line ):
 
     if sensor['type'] == 1:
         # Temperature sensor
-        print "Temperature = %7.2fC / %7.2fF" % (temperature(value), c2f(temperature(value)))
+#        print "Temperature = %7.2fC / %7.2fF" % (temperature(value), c2f(temperature(value)))
+        sys.stdout.write( ",%7.2f,%7.2f" % (temperature(value), c2f(temperature(value))) )
 
     elif sensor['type'] == 2:
         # Humidity
-        print "Humidity = %7.3f%%" % (value / 200.0)
+#        print "Humidity = %7.3f%%" % (value / 200.0)
+        sys.stdout.write( ",%7.3f" % (value / 200.0) )
 
     elif sensor['type'] == 0x53:
         # Dew Point
-        print "Dew Point = %7.2fC / %7.2fF" % (temperature(value), c2f(temperature(value)))
+#        print "Dew Point = %7.2fC / %7.2fF" % (temperature(value), c2f(temperature(value)))
+        sys.stdout.write( ",%7.2f,%7.2f" % (temperature(value), c2f(temperature(value))) )
         
     elif sensor['type'] == 0x55:
         # Absolute Humidity
-        print "Humidity = %7.2fg/m^3" % (value / 100)
+#        print "Humidity = %7.2fg/m^3" % (value / 100)
+        sys.stdout.write( ",%7.2f" % (value / 100) )
         
     elif sensor['type'] == 0x0A:
         # Light Sensor
-        print "Light = %d Lux" % (value)
+#        print "Light = %d Lux" % (value)
+        sys.stdout.write( ",%d" % (value) )
         
     elif sensor['type'] == 3:
         # Air Pressure
         # IEEE Single Precision Float Value
         s = unhexlify(line[3:11])
         value = struct.unpack("!f", s)[0]
-        print "Pressure = %f Pascal" % (value)
+#        print "Pressure = %f Pascal" % (value)
+        sys.stdout.write( ",%f" % (value) )
     
 
 if __name__ == '__main__':
     """
     Test code to read the output continuously
     """
+
+
+    # Connect to the database
+    try:
+        mydb = MySQLdb.Connect(host=db_host,user=db_user,passwd=db_pass,db=db_name)
+    except DatabaseError:
+        print "Problem connecting to database"
+        sys.exit(-1)
+            
+    # Create a dictionary cursor
+    db=mydb.cursor(MySQLdb.cursors.DictCursor)
+            
+
+
+
+
 
     port='/dev/ttyS0'
     timeout = 0.1
@@ -193,7 +228,12 @@ if __name__ == '__main__':
         elif line[0] == 'V':
             # Value report for the sensor
             process_value( sensor, line )
-
+            sql = "INSERT INTO artist VALUES(NULL,%s)"
+            db.execute( sql, (artist) )
+            
+        elif line[0] == '@':
+            sys.stdout.write("\n")
+                
         line = ser.readline(eol='\r')
         
     ser.close()
