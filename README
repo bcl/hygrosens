@@ -11,15 +11,27 @@ available from http://www.hygrosens.com
 The code works, but documentation in this initial release is sparse.
 
 
+Requirements
+------------
+pyserial module from pyserial.sourceforge.net
+distutils (usually included with python)
+
+
+Installation
+------------
 Install the library by running:
 
-python setup.py install
+su -c 'python setup.py install'
 
 You must have Python distutils installed for this to work.
 
 
-Look at the code in the example directory. It shows how to use the library
-to read the sensors and how to stuff them into a MySQL database.
+Usage
+-----
+
+Look at the code in the examples directory. It shows how to use the library
+to read the sensors and how to stuff the data into a MySQL database.
+
 
 More documentation will follow soon.
 

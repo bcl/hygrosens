@@ -4,7 +4,7 @@
 # Hygrosens Support Library
 # Copyright 2005 by Brian C. Lane
 # All rights Reserved
-#
+# Licensed under GPL v2, see the COPYRIGHT and COPYING files
 # =========================================================================
 # 02/20/2005   Putting all the pices into a library.
 # bcl          Need to add checksum function
@@ -13,24 +13,6 @@
 #              hash of all the readings.
 #          ?   Are channel numbers integers 00-16 or hex?
 # -------------------------------------------------------------------------
-# Output from the Humidity-Temperature module
-#
-# @
-#I01010100B007272701CD
-#V01084E55
-#I02020100B007272701FD
-#V0219A6B2
-#$
-#
-# Type = 1 for temperature
-#        2 for humidity
-# Temperture value is in 0.01C resolution (divide by 100)
-# Humidity is in 0.005% resolution (divide by 200)
-#
-# What about temperatures below 0C?
-# How is negative value calculated? Is hex data signed?
-
-
 """
 Hygrosens sensor output
 Copyright 2005 by Brian C. Lane <bcl@brianlane.com>
