@@ -1,4 +1,22 @@
 #!/usr/bin/python
+
+# Output from the Humidity-Temperature module
+#
+# @
+#I01010100B007272701CD
+#V01084E55
+#I02020100B007272701FD
+#V0219A6B2
+#$
+#
+# Type = 1 for temperature
+#        2 for humidity
+# Temperture value is in 0.01C resolution (divide by 100)
+# Humidity is in 0.005% resolution (divide by 200)
+#
+# What about temperatures below 0C?
+# How is negative value calculated? Is hex data signed?
+
 """
 Hygrosens sensor output
 Copyright 2005 by Brian C. Lane <bcl@brianlane.com>
@@ -6,6 +24,7 @@ Copyright 2005 by Brian C. Lane <bcl@brianlane.com>
 """
 
 import os,sys
+from binascii import *
 
 
 try:
@@ -24,6 +43,50 @@ debug = 1
 
 
 
+
+def c2f(c):
+    """
+    Convert degrees C to degrees F
+    """
+    return ((c * 9.0)/5.0)+32.0
+    
+def f2c(f):
+    """
+    Convert degrees F to degrees C
+    """
+    return ((f-32) * 5.0)/9.0
+                                
+def c2k(c):
+    """
+    Convert degrees C to degrees Kelvin
+    """
+    raise Unimplemented
+                                                    
+def k2c(k):
+    """
+    Convert degrees Kelvin to degrees C
+    """
+    raise Unimplemented
+                                                                        
+def c2j(c):
+    """
+    Convert degrees C to joules
+    """
+    raise Unimplemented
+                                                                                            
+def j2c(j):
+    """
+    Convert joules to degrees C
+    """
+    raise Unimplemented
+
+def checksum( line ):
+    """
+    Check the checksum of the received line
+    """
+    pass
+    
+
 def process_sensor( line ):
     """
     Parse the 'I' serial number, type and check the checksum
@@ -36,6 +99,18 @@ def process_sensor( line ):
     """
     print line
     
+    sensor = int(line[1:3])
+    type   = int(line[3:5])
+    family = int(line[5:7])
+    serial = line[7:19]
+
+    # Return a dictionary
+    return { 'sensor' : sensor,
+             'type'   : type,
+             'family' : family,
+             'serial' : serial
+           }
+    
 
 def process_value( sensor, line ):
     """
@@ -47,11 +122,19 @@ def process_value( sensor, line ):
     """
     print line
 
+    channel = int(line[1:3])
+    value   = int(line[3:7],16)
 
+    print "%02d  : %d" % (channel, value)
 
+    if sensor['type'] == 1:
+        # Temperature sensor
+        print "Temperature = %7.2fC / %7.2fF" % (value / 100.0, c2f(value / 100.0))
 
-
-
+    elif sensor['type'] == 2:
+        # Humidity
+        print "Humidity = %7.3f%%" % (value / 200.0)
+    
 
 if __name__ == '__main__':
     """
