@@ -1,0 +1,29 @@
+Hygrosens Support Library v0.5
+Copyright (c) 2005 by Brian C. Lane
+<bcl@brianlane.com> http://www.brianlane.com
+All rights reserved.
+Licensed under GPL v2, see COPYRIGHT and COPYING
+
+
+This is my first pass at a library for the Hygrosens sensor devices
+available from http://www.hygrosens.com
+
+The code works, but documentation in this initial release is sparse.
+
+
+Install the library by running:
+
+python setup.py install
+
+You must have Python distutils installed for this to work.
+
+
+Look at the code in the example directory. It shows how to use the library
+to read the sensors and how to stuff them into a MySQL database.
+
+More documentation will follow soon.
+
+
+Brian C. Lane
+February 20, 2005
+The Basement
