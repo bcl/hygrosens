@@ -6,6 +6,9 @@
 # All rights Reserved
 # Licensed under GPL v2, see the COPYRIGHT and COPYING files
 # =========================================================================
+# 06/02/2005   Added type mapping to description of type and units
+# bcl
+#
 # 02/20/2005   Putting all the pices into a library.
 # bcl          Need to add checksum function
 #              Need to test with freezing temperatures
@@ -79,6 +82,15 @@ class hygrosens:
     """
     Hygrosens Class
     """
+    sensor_type = { 1    : ('Temperature',       'C'),
+                    2    : ('Humidity',          '%'),
+                    3    : ('Air Pressure',      'P?'),
+                    0x53 : ('Dew Point',         'C'),
+                    0x55 : ('Absolute Humidity', '%'),
+                    0x0A : ('Light Level',       'L?'),
+                    
+                  }
+
     def __init__(self,debug=0, port='/dev/ttyS0', timeout=10):
         """
         Initialize the connection to the Hygrosens device

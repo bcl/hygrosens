@@ -1,175 +1,209 @@
 #!/usr/bin/env python
+# 
+# Hygrosens Logging/Graphing application
+# Copyright 2005 by Brian C. Lane <bcl@brianlane.com>
+# http://www.brianlane.com/software/hygrosens/
 #
-# DigiTemp temperature and q-wire home weather station logging
-# Copyright 2003 by Brian C. Lane <bcl@brianlane.com>
-# http://www.digitemp.com
-#
-# Requires DigiTemp v3.1.0 or later for counter support
 # Requires Python MySQLdb module and Round Robin Database binaries
 #
 # Logs data to a MySQL database and to a RRDb graph log
-#
-# Create a MySQL database called weather and give a weather user permission
-# to access it.
-# GRANT SELECT,INSERT,CREATE ON weather.* TO weather@localhost IDENTIFIED BY 'password';
-#
-# CREATE TABLE temperature (
-#   TemperatureKey bigint UNSIGNED NOT NULL auto_increment,
-#   SerialNumber varchar(20) NOT NULL,
-#   RecTime timestamp NOT NULL,
-#   C float NOT NULL, 
-#   PRIMARY KEY(SerialNumber),
-#   KEY(TemperatureKey)
-# );
-#
-# CREATE TABLE counter (
-#   CounterKey bigint UNSIGNED NOT NULL auto_increment, 
-#   SerialNumber varchar(20) NOT NULL,
-#   RecTime timestamp NOT NULL,
-#   CounterNum tinyint UNSIGNED NOT NULL,
-#   CounterValue mediumint UNSIGNED NOT NULL,
-#   PRIMARY KEY(SerialNumber),
-#   KEY(CounterKey)
-# );
 # 
+# 1. Read current sensors
+# 2. Log to mysql database (if available)
+# 3. Log to RRDB database
+# 4. Generate graphs
+# 5. Generate HTTP
+# ------------------------------------------------------------------------
 
-import string, os, sys, time
-import MySQLdb
+db_host = 'localhost'
+db_user = 'hygrosens'
+db_pass = '1212kdurm'
+db_name = 'htgrosens'
+
+rrdtool_paths = ["/usr/bin/rrdtool","/usr/local/bin/rrdtool","/usr/local/rrdtool/bin/rrdtool"]
+rrd_time = [ "-3hours", "-32hours", "-8days", "-5weeks", "-13months" ]
+rrd_path     = "/home/brian/temperature/"
+html_path    = "/home/brian/public_html/hygrosens/"
 
 timefmt = '%Y-%m-%d %H:%M:%S'
 
-# Connect to the database
-try:
-  mydb = MySQLdb.Connect(host='localhost',user='weather',passwd='password',db='weather')
-except DatabaseError:
-  print "Problem connecting to database"
-  sys.exit(-1)
+debug = 1
+##########################################################################
+import string, os, sys, time
 
-cursor=mydb.cursor()
 
-# 1. Read the output of DigiTemp
-cmd = '/home/brian/temperature/digitemp -c/home/brian/temperature/digitemp.cfg -a -q'
 
-for outline in os.popen(cmd).readlines():
-   outline = outline[:-1]
-#   print outline
-
-   if outline[0:1] == 'T':
-      # Parse the temperature sensor line
-      S = string.split(outline, " ")
-#      print S      
-
-      # Add the reading to the database
-      sql = "INSERT INTO temperature VALUES(NULL, %s, %s, %s)"
-      sqltime = time.strftime( timefmt, time.localtime(int(S[2])))
-      cursor.execute( sql, (S[1], sqltime, S[3]) );
-
-   if outline[0:1] == 'C':
-      # Parse the counter line
-      S = string.split(outline, " ")
-#      print S
-
-      # Add the reading to the database
-      sql = "INSERT INTO counter VALUES(NULL, %s, %s, %s, %s)"
-      sqltime = time.strftime( timefmt, time.localtime(int(S[2])))
-      cursor.execute( sql, (S[1], sqltime, S[3], S[4]) );
-
-# -----------------------------------------------------------------------
-# Do interesting things with the just-logged information
-# =======================================================================
-# Brian's Sensor Map:
-#
-#10E8A00E00000055      Room (grey wire)
-#10B95E05000800AA      Attic
-#10575A050008008F      Desk
-#22B9B20500000049      DS1822
-#286D1D2D000000EA      DS18B20 (kermit)
-#1092B9330008002E      Drink
-#1D9CB900000000B3      Rain Gauge
-#1DFA15010000005F      Wind Speed
-#1009212E0008004B      DT-1A passive sensor
-#
-
-# Dict of serial numbers and what to name them
-sensors = {'10E8A00E00000055':'Office',
-           '10B95E05000800AA':'Attic',
-           '10575A050008008F':'Desk',
-           '22B9B20500000049':'DS1822',
-           '286D1D2D000000EA':'DS18B20',
-           '1092B9330008002E':'Drink',
-           '1009212E0008004B':'DT1A'
-          }
-counters= {'1D9CB900000000B3':'Rain',
-           '1DFA15010000005F':'Wind'
-          }
-
-rrdtool_path = "/usr/local/rrdtool/bin/rrdtool"
-rrd_path     = "/home/brian/temperature/"
-
+# ------------------------------------------------------------------------
 def c2f( c ):
   f = 32.0 + ((c * 9.0) / 5.0)
   return f
 
-rrd_sensors = {}
+def create_loadavg( rrd_file ):
+    """
+    Create the initial loadavg RRD file
+    """
+    
+    if os.path.isfile( rrd_file ):
+        print "%s exists, skipping creation" % (rrd_file)
+    else:
+        rrd_cmd = ( rrdtool_path, "create", rrd_file, 
+                    "DS:load_1:GAUGE:600:U:U",
+                    "DS:load_5:GAUGE:600:U:U",
+                    "DS:load_15:GAUGE:600:U:U",
+                    "DS:running:GAUGE:600:U:U",
+                    "DS:total:GAUGE:600:U:U",
+                    "RRA:AVERAGE:0.5:1:676",
+                    "RRA:AVERAGE:0.5:6:672",
+                    "RRA:AVERAGE:0.5:24:720",
+                    "RRA:AVERAGE:0.5:288:730",
+                    "RRA:MAX:0.5:1:676",
+                    "RRA:MAX:0.5:6:672",
+                    "RRA:MAX:0.5:24:720",
+                    "RRA:MAX:0.5:288:797",
+                  )
 
-# grab the latest readings for the sensors
-for skey in sensors.keys():
-  sql = "SELECT UNIX_TIMESTAMP(rectime), C from temperature where serialnumber='"+skey+"' ORDER BY rectime DESC LIMIT 1"
-#  print sql
-  cursor.execute(sql)
-  result = cursor.fetchone()
-#  print result
-  rrd_sensors[sensors[skey]] = result
+        if debug>0: 
+            debug_print(rrd_cmd)
+            
+        rrd_string = ""
+        for i in rrd_cmd:
+            rrd_string = rrd_string + i + " "
+        
+        output = os.popen( rrd_string ).readlines()
 
-# grab the counters
-rrd_counters = {}
 
-# grab the latest readings for the sensors
-for ckey in counters.keys():
-  sql = "SELECT UNIX_TIMESTAMP(rectime), countervalue from counter where serialnumber='"+ckey+"' AND counternum=0 ORDER BY rectime DESC LIMIT 1"
-#  print sql
-  cursor.execute(sql)
-  result = cursor.fetchone()
-#  print result
-  rrd_counters[counters[ckey]] = result
 
-# Log the temperatures to the RRD
-# rrdtool update drink.rrd time:value
-rrd = "%s update %s/drink.rrd %ld:%0.2f"  % (rrdtool_path, rrd_path, rrd_sensors['Drink'][0], rrd_sensors['Drink'][1])
-os.system(rrd)
-#print rrd
 
-# rrdtool update outside.rrd time:value
-rrd = "%s update %s/outside.rrd %ld:%0.2f"  % (rrdtool_path, rrd_path, rrd_sensors['Attic'][0], rrd_sensors['Attic'][1])
-os.system(rrd)
-#print rrd
+# ------------------------------------------------------------------------
+try:
+    import MySQLdb
+    use_sql = 1
+except:
+    sys.stderr.write("No MySQL database support. Skipping SQL database store.\n")
+    use_sql = 0
 
-# rrdtool update room.rrd time:value
-rrd = "%s update %s/room.rrd %ld:%0.2f"  % (rrdtool_path, rrd_path, rrd_sensors['Office'][0], rrd_sensors['Office'][1])
-os.system(rrd)
-#print rrd
 
-# rrdtool update room.rrd time:value
-rrd = "%s update %s/kermit.rrd %ld:%0.2f"  % (rrdtool_path, rrd_path, rrd_sensors['DS1822'][0], rrd_sensors['DS1822'][1])
-os.system(rrd)
-#print rrd
+# Find the rrdtool binary
+rrdtool_path = ""
+for path in rrdtool_paths:
+    if os.path.isfile(path):
+        rrdtool_path = path
+        break
+else:
+    sys.stderr.write("No RRD Tool executable found at %s\n" % (rrdtool_path))
+    sys.exit(-1)
 
-# Log the counter values
-# rrdtool update rain.rrd time:value
-rrd = "%s update %s/rain.rrd %ld:%ld"  % (rrdtool_path, rrd_path, rrd_counters['Rain'][0], rrd_counters['Rain'][1])
-os.system(rrd)
-#print rrd
+try:
+    from hygrosens import *
+except:
+    sys.stderr.write("Error importing the Hygrosens module. Is it installed?\n\n")
+    sys.exit(-1)
 
-# rrdtool update wind.rrd rime:value
-rrd = "%s update %s/wind.rrd %ld:%ld"  % (rrdtool_path, rrd_path, rrd_counters['Wind'][0], rrd_counters['Wind'][1])
-os.system(rrd)
-#print rrd
 
+# Connect to the Hygrosens device
+try:    
+    sensors = hygrosens(debug=0,port='/dev/ttyS0',timeout=5)
+except:
+    sys.stderr.write("Error opening the Hygosens device\n")
+    sys.exit(-1)
+
+
+# Read a single output from the attached Hygrosens sensors into the result
+# dictionary
+result = sensors.read_all()
+
+# Connect to the database
+if use_sql:
+    try:
+        mydb = MySQLdb.Connect(host=db_host,user=db_user,passwd=db_pass,db=db_name)
+    except:
+        print "Problem connecting to database"
+        raise
+        sys.exit(-1)
+
+    cursor=mydb.cursor()
+
+# Insert the results into the database and RRD tables
+# 'value': 15, 'serial': '02A0A61C0100', 'type': 10, 'family': 0, 'channel': 5
+for key in result.keys():
+    print result[key]
+
+    if use_sql == 1:
+        sql = "INSERT INTO hygrosens VALUES(NULL, %s, %s, %s, %s, %s, %s)"
+        sqltime = time.strftime( timefmt, time.time() )
+        cursor.execute( sql, (sqltime, result['channel'], result['serial'], result['type'], result['family'], result['value']) );
+
+    # Update the interface rrd
+    rrd_data = "N:%0.2f"  % (result['value'])
+    # Run rrdtool in as secure a fashion as possible
+    rrd_file = rrd_path + os.sep + result['channel'] + ".rrd"
+    rrd_cmd = ("rrdtool","update", rrd_file, rrd_data)
+    if debug>0: 
+        debug_print(rrd_cmd)
+    pid = os.spawnv( os.P_NOWAIT, rrdtool_path, rrd_cmd)
+
+    # Graph the data
+    for graph_time in rrd_time:
+        png_file = png_path + os.sep + result['channel'] + graph_time + ".png"
+
+        in_print = " GPRINT:in_bits:MIN:\"%-8s %%8.2lf%%s \"" % (iface + " in")
+        out_print = " GPRINT:out_bits:MIN:\"%-8s %%8.2lf%%s \"" % (iface + " out")
+        width_str = "%d" % (width)
+        height_str = "%d" % (height)
+
+        rrd_cmd = ( rrdtool_path, " graph ", png_file, " --imgformat PNG",
+                    " --start '", starttime, 
+                    "' --end '", endtime, "'",
+                    " --width ", width_str,
+                    " --height ", height_str,
+                    " DEF:in_bytes=", rrd_file, ":rx_bytes:AVERAGE",
+                    " DEF:out_bytes=", rrd_file, ":tx_bytes:AVERAGE",
+                    " CDEF:in_bits=in_bytes,8,*",
+                    " CDEF:out_bits=out_bytes,8,*",
+                    " AREA:in_bits#00FF00:'Input bits/s'",
+                    " LINE1:out_bits#0000FF:'Output bits/s\\c'",
+                    " COMMENT:\"              \"",
+                    " COMMENT:\"           Min          Max          Avg         Last\\n\"",
+                    " COMMENT:\"           \"",
+                    in_print,
+                    " GPRINT:in_bits:MAX:\" %8.2lf%s \"",
+                    " GPRINT:in_bits:AVERAGE:\" %8.2lf%s \"",
+                    " GPRINT:in_bits:LAST:\" %8.2lf%s \\n\"",
+                    " COMMENT:\"           \"",
+                    out_print,
+                    " GPRINT:out_bits:MAX:\" %8.2lf%s \"",
+                    " GPRINT:out_bits:AVERAGE:\" %8.2lf%s \"",
+                    " GPRINT:out_bits:LAST:\" %8.2lf%s \\n\"",
+                    " COMMENT:\"           \"",
+                    " COMMENT:\"Last Updated ", ctime(), "\\c\""
+                  )
+
+        if debug>0: 
+            debug_print(rrd_cmd)
+                
+        rrd_string = ""
+        for i in rrd_cmd:
+            rrd_string = rrd_string + i
+
+        if debug>0: 
+            debug_print(rrd_string)
+                
+        output = os.popen( rrd_string ).readlines()
+
+
+
+
+        
+if use_sql == 1:
+    mydb.close()
 
 # Write a new .signature file
-outfile = open('/home/user/.signature','w')
-sig = "--[Inside %0.1fF]--[Outside %0.1fF]--[Kermit %0.1fF]--[Coaster %0.1fF]--\n" % (c2f(rrd_sensors['Office'][1]),c2f(rrd_sensors['Attic'][1]),c2f(rrd_sensors['DS1822'][1]),c2f(rrd_sensors['Drink'][1]))
-outfile.write(sig)
-outfile.close()
+#outfile = open('/home/user/.signature','w')
+#sig = "--[Inside %0.1fF]--[Outside %0.1fF]--[Kermit %0.1fF]--[Coaster %0.1fF]--\n" % (c2f(rrd_sensors['Office'][1]),c2f(rrd_sensors['Attic'][1]),c2f(rrd_sensors['DS1822'][1]),c2f(rrd_sensors['Drink'][1]))
+#outfile.write(sig)
+#outfile.close()
 
-mydb.close()
+
+# Write html
+
+
