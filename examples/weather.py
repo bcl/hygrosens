@@ -14,11 +14,21 @@
 # 4. Generate graphs
 # 5. Generate HTTP
 # ------------------------------------------------------------------------
-
+# Setup of PostgreSQL database
+#   As the system postgres user execute the following:
+#   createuser
+#       Enter name of user to add: USERNAME
+#       Shall the new user be allowed to create databases? (y/n) n
+#       Shall the new user be allowed to create more new users? (y/n) n
+#   createdb -O USERNAME hygrosens 
+#
+# Substitute the system username that will be executing this program for
+# the USERNAME parameters above.
+# ------------------------------------------------------------------------
 db_host = 'localhost'
-db_user = 'hygrosens'
-db_pass = '1212kdurm'
-db_name = 'htgrosens'
+db_user = 'bcl'
+db_pass = ''
+db_name = 'hygrosens'
 
 rrdtool_paths = ["/usr/bin/rrdtool","/usr/local/bin/rrdtool","/usr/local/rrdtool/bin/rrdtool"]
 rrd_time = [ "-3hours", "-32hours", "-8days", "-5weeks", "-13months" ]
@@ -76,10 +86,10 @@ def create_loadavg( rrd_file ):
 
 # ------------------------------------------------------------------------
 try:
-    import MySQLdb
+    import pg
     use_sql = 1
 except:
-    sys.stderr.write("No MySQL database support. Skipping SQL database store.\n")
+    sys.stderr.write("No PostgreSQL database support. Skipping SQL database store.\n")
     use_sql = 0
 
 
@@ -90,7 +100,7 @@ for path in rrdtool_paths:
         rrdtool_path = path
         break
 else:
-    sys.stderr.write("No RRD Tool executable found at %s\n" % (rrdtool_path))
+    sys.stderr.write("No RRD Tool executable found at %s\n" % (rrdtool_paths))
     sys.exit(-1)
 
 try:
@@ -115,7 +125,7 @@ result = sensors.read_all()
 # Connect to the database
 if use_sql:
     try:
-        mydb = MySQLdb.Connect(host=db_host,user=db_user,passwd=db_pass,db=db_name)
+        mydb = pg.Connect(host=db_host,user=db_user,passwd=db_pass,db=db_name)
     except:
         print "Problem connecting to database"
         raise
