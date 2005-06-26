@@ -1,3 +1,6 @@
+This readme is old and needs to be updated.
+
+
 This script is pretty rough at the moment. I haven't made any attempt to
 clean it up and make it more user friendly yet. But it does work if you're
 willing to take the time to tweak it. It reads temps, logs them to a MySQL

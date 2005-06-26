@@ -46,8 +46,8 @@ width  = 400
 height = 100 
 
 # debugging options for development
-debug = 1
-debug_sql = 1
+debug     = 0
+debug_sql = 0
 debug_rrd = 0
 
 ##########################################################################
@@ -108,7 +108,65 @@ def setup_rrd(result):
     for key in result.keys():
         rrd_file = rrd_path + os.sep + str(result[key]['channel']) + ".rrd"
         create_rrd( rrd_file )
+
+
+def setup_html(result):
+    """
+    Setup the html pages for the sensors detected
+    """
     
+    # Create individual pages first
+    for key in result.keys():
+        f = open( html_path + os.sep + str(result[key]['channel']) + ".html", "w" )
+        f.write("<html><head><title>")
+        f.write( sensors.sensor_type[result[key]['type']][0] )
+        f.write('</title>\n<body bgcolor="white"><center>\n')
+
+        for graph_time in rrd_time:
+            png_file = str(result[key]['channel']) + graph_time + ".png"
+            f.write('<img src="' + png_file + '"><p>\n')
+        
+        f.write("</body></html>\n")
+        f.close()
+
+    # Create index pages
+    for graph_time in rrd_time:
+        if( graph_time == '-3hours' ):
+            index_name = "index.html"
+        else:
+            index_name = "index" + graph_time + ".html"
+        f = open( html_path + os.sep + index_name, "w" )
+        f.write("<html><head><title>Hygrosens Sensor Display</title></head>\n")
+        f.write('<body bgcolor="white"><center>\n')
+        
+        f.write("<a href=\"index.html\">3 Hour View</a>&nbsp;<b>|</b>");
+        f.write("<a href=\"index-32hours.html\">32 hour View</a>&nbsp;<b>|</b>");
+        f.write("<a href=\"index-8days.html\">8 day View</a>&nbsp;<b>|</b>");
+        f.write("<a href=\"index-5weeks.html\">5 week View</a>&nbsp;<b>|</b>");
+        f.write("<a href=\"index-13months.html\">13 month View</a><p>");
+                                    
+        for key in result.keys():
+            channel_html = str(result[key]['channel']) + ".html"
+            f.write('<a href=' + channel_html + '>' )
+            png_file = str(result[key]['channel']) + graph_time + ".png"
+            f.write('<img src="' + png_file + '"></a><p>\n')
+        f.write("</center></body></html>\n")
+        f.close()
+        
+
+def usage():
+    print """
+    weather.py --graph|--setup|--html
+
+    --graph   read the current sensor values, log to the SQL database
+              and update the RRD graphs.
+    --setup   generate rrd graph files for the current sensors and then
+              execute --graph
+    --html    generate html files for displaying the RRD graphs
+
+    -c        Graph temperatures in Centigrade
+    -f        Graph temperatures in Fahrenheit
+    """ 
     
 
 # ------------------------------------------------------------------------
@@ -137,7 +195,7 @@ except:
     sys.exit(-1)
 
 # Process command line arguments
-opts, args = getopt( sys.argv[1:], "", ["graph","setup","html"])
+opts, args = getopt( sys.argv[1:], "cf", ["graph","setup","html"])
 
 if not opts:
     usage()
@@ -164,6 +222,12 @@ result = sensors.read_all()
 if command.has_key('--setup'):
     setup_rrd(result)
 
+if command.has_key('--html'):
+    setup_html(result)
+
+# Exit without logging when setting up rrd or html files
+if command.has_key('--setup') or command.has_key('--html'):
+    sys.exit(0)
 
 # Connect to the database
 if use_sql:
@@ -191,7 +255,11 @@ for key in result.keys():
         mydb.commit()
         
     # Update the interface rrd
-    rrd_data = "N:%0.2f"  % (result[key]['value'])
+    if result[key]['type'] == 1 and command.has_key("-f"):
+        rrd_data = "N:%0.2f"  % (c2f(result[key]['value']))
+    else:
+        rrd_data = "N:%0.2f"  % (result[key]['value'])
+
     # Run rrdtool in as secure a fashion as possible
     rrd_file = rrd_path + os.sep + str(result[key]['channel']) + ".rrd"
     rrd_cmd = ("rrdtool","update", rrd_file, rrd_data)
@@ -208,7 +276,6 @@ for key in result.keys():
         in_print = " GPRINT:value:MIN:\"%-8s %%8.2lf%%s \"" % (sensors.sensor_type[result[key]['type']][0])
         width_str  = "%d" % (width)
         height_str = "%d" % (height)
-        graph_line = " LINE1:value#0000FF:'%s/s\\c'" % (sensors.sensor_type[result[key]['type']][0])
         
         rrd_cmd = ( rrdtool_path, " graph ", png_file, " --imgformat PNG",
                     " --start '", starttime, 
@@ -216,7 +283,7 @@ for key in result.keys():
                     " --width ", width_str,
                     " --height ", height_str,
                     " DEF:value=", rrd_file, ":value:AVERAGE",
-                    graph_line,
+                    " LINE1:value#0000FF:'\\c'",
                     " COMMENT:\"              \"",
                     " COMMENT:\"           Min          Max          Avg         Last\\n\"",
                     " COMMENT:\"           \"",
