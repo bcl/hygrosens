@@ -27,16 +27,22 @@
 # the USERNAME parameters above.
 # ------------------------------------------------------------------------
 
+# PostgreSQL connection string
 # DSN is "{host:{port}:}database{:user}{:password}".
 # Note: Items between { } are optional.
 dsn = '::hygrosens'
 
+# Serial port that the hygrosens device is attached to
+port = "/dev/ttyS0"
+
+# Path to where rrd files should be stored
+rrd_path     = "/home/weather/rrdb"
+html_path    = "/home/weather/public_html"
+
+
+# Possible paths to rrdtool executable
 rrdtool_paths = ["/usr/bin/rrdtool","/usr/local/bin/rrdtool","/usr/local/rrdtool/bin/rrdtool"]
 rrd_time = [ "-3hours", "-32hours", "-8days", "-5weeks", "-13months" ]
-
-
-rrd_path     = "/home/bcl/rrdb"
-html_path    = "/home/bcl/public_html/hygrosens"
 
 
 timefmt = '%Y-%m-%d %H:%M:%S'
@@ -310,14 +316,3 @@ for key in result.keys():
         
 if use_sql == 1:
     mydb.close()
-
-# Write a new .signature file
-#outfile = open('/home/user/.signature','w')
-#sig = "--[Inside %0.1fF]--[Outside %0.1fF]--[Kermit %0.1fF]--[Coaster %0.1fF]--\n" % (c2f(rrd_sensors['Office'][1]),c2f(rrd_sensors['Attic'][1]),c2f(rrd_sensors['DS1822'][1]),c2f(rrd_sensors['Drink'][1]))
-#outfile.write(sig)
-#outfile.close()
-
-
-# Write html
-
-
