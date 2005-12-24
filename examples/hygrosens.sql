@@ -1,8 +1,12 @@
 CREATE TABLE hygrosens (
-  SampleTime timestamp,
-  Channel int,
+  SampleKey int NOT NULL  auto_increment,
   SerialNumber varchar(20),
+  Channel int,
   Type int,
   Family int,
-  Value real
+  SampleTime timestamp,
+  Value real,
+  PRIMARY KEY (SampleKey),
+  KEY SerialIndex (SerialNumber(20))
 );
+
